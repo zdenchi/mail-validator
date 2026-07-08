@@ -1,76 +1,118 @@
+<script setup lang="ts">
+import type { validate as emailValidator } from 'deep-email-validator'
+
+type ValidationResult = Awaited<ReturnType<typeof emailValidator>>
+
+const emailsInput = ref('')
+const submittedEmails = ref<string[]>([])
+const results = ref<ValidationResult[]>([])
+const loading = ref(false)
+
+const submitEmails = async () => {
+  const emailList = emailsInput.value
+    .split(',')
+    .map(email => email.trim())
+    .filter(Boolean)
+
+  if (emailList.length === 0) {
+    submittedEmails.value = []
+    results.value = []
+    return
+  }
+
+  submittedEmails.value = emailList
+  await validateEmails(emailList)
+}
+
+const validateEmails = async (emailList: string[]) => {
+  loading.value = true
+  try {
+    const result = await $fetch('/api/validate', {
+      method: 'POST',
+      body: { emailList }
+    })
+    results.value = result
+  } catch (error) {
+    console.error(error)
+  } finally {
+    loading.value = false
+  }
+}
+</script>
+
 <template>
-  <div>
-    <UPageHero
-      title="Nuxt Starter Template"
-      description="A production-ready starter template powered by Nuxt UI. Build beautiful, accessible, and performant applications in minutes, not hours."
-      :links="[{
-        label: 'Get started',
-        to: 'https://ui.nuxt.com/docs/getting-started/installation/nuxt',
-        target: '_blank',
-        trailingIcon: 'i-lucide-arrow-right',
-        size: 'xl'
-      }, {
-        label: 'Use this template',
-        to: 'https://github.com/nuxt-ui-templates/starter',
-        target: '_blank',
-        icon: 'i-simple-icons-github',
-        size: 'xl',
-        color: 'neutral',
-        variant: 'subtle'
-      }]"
-    />
+  <div class="mx-auto max-w-5xl space-y-4 p-6">
+    <h1 class="text-2xl font-semibold">
+      Email Validator
+    </h1>
 
-    <UPageSection
-      id="features"
-      title="Everything you need to build modern Nuxt apps"
-      description="Start with a solid foundation. This template includes all the essentials for building production-ready applications with Nuxt UI's powerful component system."
-      :features="[{
-        icon: 'i-lucide-rocket',
-        title: 'Production-ready from day one',
-        description: 'Pre-configured with TypeScript, ESLint, Tailwind CSS, and all the best practices. Focus on building features, not setting up tooling.'
-      }, {
-        icon: 'i-lucide-palette',
-        title: 'Beautiful by default',
-        description: 'Leveraging Nuxt UI\'s design system with automatic dark mode, consistent spacing, and polished components that look great out of the box.'
-      }, {
-        icon: 'i-lucide-zap',
-        title: 'Lightning fast',
-        description: 'Optimized for performance with SSR/SSG support, automatic code splitting, and edge-ready deployment. Your users will love the speed.'
-      }, {
-        icon: 'i-lucide-blocks',
-        title: '100+ components included',
-        description: 'Access Nuxt UI\'s comprehensive component library. From forms to navigation, everything is accessible, responsive, and customizable.'
-      }, {
-        icon: 'i-lucide-code-2',
-        title: 'Developer experience first',
-        description: 'Auto-imports, hot module replacement, and TypeScript support. Write less boilerplate and ship more features.'
-      }, {
-        icon: 'i-lucide-shield-check',
-        title: 'Built for scale',
-        description: 'Enterprise-ready architecture with proper error handling, SEO optimization, and security best practices built-in.'
-      }]"
-    />
+    <div class="grid gap-6 md:grid-cols-[1fr_auto_1fr]">
+      <form
+        class="space-y-4"
+        @submit.prevent="submitEmails"
+      >
+        <UFormField
+          label="Список email (через запятую)"
+          name="emails"
+        >
+          <UTextarea
+            v-model="emailsInput"
+            :rows="10"
+            autoresize
+            class="w-full"
+            placeholder="user1@example.com, user2@example.com"
+          />
+        </UFormField>
 
-    <UPageSection>
-      <UPageCTA
-        title="Ready to build your next Nuxt app?"
-        description="Join thousands of developers building with Nuxt and Nuxt UI. Get this template and start shipping today."
-        variant="subtle"
-        :links="[{
-          label: 'Start building',
-          to: 'https://ui.nuxt.com/docs/getting-started/installation/nuxt',
-          target: '_blank',
-          trailingIcon: 'i-lucide-arrow-right',
-          color: 'neutral'
-        }, {
-          label: 'View on GitHub',
-          to: 'https://github.com/nuxt-ui-templates/starter',
-          target: '_blank',
-          icon: 'i-simple-icons-github',
-          color: 'neutral',
-          variant: 'outline'
-        }]"
-      />
-    </UPageSection>
+        <UButton
+          type="submit"
+          :loading="loading"
+        >
+          Проверить
+        </UButton>
+      </form>
+
+      <USeparator orientation="vertical" class="h-48" />
+
+      <section class="space-y-3">
+        <h2 class="text-lg font-medium">
+          Результаты
+        </h2>
+
+        <div
+          v-if="results.length === 0"
+          class="rounded-lg border border-default p-4 text-sm text-muted"
+        >
+          Пока нет результатов. Введи email и нажми "Проверить".
+        </div>
+
+        <ul
+          v-else
+          class="space-y-2"
+        >
+          <li
+            v-for="(result, index) in results"
+            :key="`${submittedEmails[index]}-${index}`"
+            class="rounded-lg border border-default p-3"
+          >
+            <p class="font-mono text-sm">
+              {{ submittedEmails[index] || 'unknown@email' }}
+            </p>
+            <p
+              class="text-sm"
+              :class="result.valid ? 'text-success' : 'text-error'"
+            >
+              {{ result.valid ? 'Валидный' : 'Невалидный' }}
+            </p>
+            <p
+              v-if="result.reason"
+              class="text-xs text-muted"
+            >
+              Причина: {{ result.reason }}
+            </p>
+          </li>
+        </ul>
+      </section>
+    </div>
   </div>
 </template>
